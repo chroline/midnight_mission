@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from pandas import DataFrame
-import seaborn as sns
-from matplotlib.colors import LinearSegmentedColormap
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 st.write("# Social Media Dashboard")
 
@@ -13,7 +12,6 @@ uploaded_file = st.file_uploader("Choose an Excel (.xlsx) file", type="xlsx")
 def create_growth_chart(df: DataFrame):
     data = df.copy()
 
-    data.columns = ['Date', 'TikTok', 'Twitter', 'Instagram', 'Vero', 'YouTube', 'LinkedIn', 'Facebook']
     data.set_index('Date', inplace=True)
 
     # Calculate the growth from the initial value for all columns
@@ -83,7 +81,6 @@ def create_mtm_growth_chart(df: pd.DataFrame):
 
     # Copy DataFrame and preprocess data
     data = df.copy()
-    data.columns = ['Date', 'TikTok', 'Twitter', 'Instagram', 'Vero', 'YouTube', 'LinkedIn', 'Facebook']
     data['Date'] = pd.to_datetime(data['Date'])
     data.set_index('Date', inplace=True)
     data.columns = data.columns.str.strip()
@@ -121,6 +118,43 @@ def create_mtm_growth_chart(df: pd.DataFrame):
     st.pyplot(fig)
 
 
+def create_growth_projection(df: pd.DataFrame):
+    st.write("## Instagram Growth Forecast")
+
+    data = df.copy()
+    data['Date'] = pd.to_datetime(data['Date'])
+    data.set_index('Date', inplace=True)
+
+    instagram_data = data['Instagram']
+
+    sarima_order = (1, 1, 1)
+    seasonal_order = (1, 1, 1, 12)  # yearly seasonality
+
+    sarima_model = SARIMAX(instagram_data, order=sarima_order, seasonal_order=seasonal_order,
+                           enforce_stationarity=False, enforce_invertibility=False)
+    sarima_result = sarima_model.fit()
+
+    forecast = sarima_result.get_forecast(steps=12)
+    forecast_values = forecast.predicted_mean
+    confidence_intervals = forecast.conf_int()
+
+    forecast_index_corrected = pd.date_range(instagram_data.index[-1] + pd.offsets.MonthEnd(1), periods=12, freq='M')
+
+    plt.figure(figsize=(14, 7))
+    plt.plot(instagram_data.index, instagram_data, label='Actual', marker='o')
+    plt.plot(forecast_index_corrected, forecast_values, color='red', label='Forecast', marker='x')
+    plt.fill_between(forecast_index_corrected, confidence_intervals.iloc[:, 0], confidence_intervals.iloc[:, 1],
+                     color='pink', alpha=0.3)
+    plt.title('Instagram Growth Forecast')
+    plt.xlabel('Date')
+    plt.ylabel('Instagram Metrics')
+    plt.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    st.pyplot(plt)
+
+
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
@@ -128,4 +162,4 @@ if uploaded_file is not None:
     create_median_growth_chart(df)
 
     create_mtm_growth_chart(df)
-
+    create_growth_projection(df)
