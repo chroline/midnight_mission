@@ -2,35 +2,36 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-st.write("# COM Events Dashboard")
+# Set the title for the dashboard
+st.title("COM Events Dashboard")
 
+# File uploader for input data
 uploaded_file = st.file_uploader("Choose an Excel (.xlsx) file", type="xlsx")
 
 
-def create_event_attendance_chart(df: pd.DataFrame, start_date, end_date):
-    st.write("## Event Attendance Chart")
+# Preprocess data, setting 'Date' as a datetime index
+def preprocess_data(df: pd.DataFrame):
+    df['Date'] = pd.to_datetime(df['Date'])
+    df.sort_values('Date', inplace=True)
+    return df
 
-    data = df.copy()
 
-    # Convert 'Date' column to datetime
-    data['Date'] = pd.to_datetime(data['Date'])
+# Plot the attendance for speaker events filtered by date and event type.
+def create_event_attendance_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.Timestamp):
+    st.subheader("Event Attendance Chart")
 
-    # Filter the data based on user input
-    data = data[(data['Date'] >= start_date) & (data['Date'] <= end_date)]
+    # Filter data for events between the selected date range and specific months
+    filtered_data = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+    filtered_data = filtered_data[filtered_data['Date'].dt.month.isin([11, 12])]
 
-    # Filter for events in November and December
-    nov_dec_events = data[(data['Date'].dt.month == 11) | (data['Date'].dt.month == 12)]
+    # Further filter for events of type "Speaker"
+    speaker_events = filtered_data[filtered_data['Event Category'].str.contains('Speaking Events')]
 
-    # Filter for events of type "Speaker" (AA and TMM)
-    speaker_events = nov_dec_events[(nov_dec_events['Event Category'] == 'Speaking Events (AA)') |
-                                    (nov_dec_events['Event Category'] == 'Speaking Events (TMM)')]
+    # Aggregate attendance
+    speaker_attendance = speaker_events.groupby(['Date', 'Primary Midnight Mission Employee Involved',
+                                                 'Location', 'Event Category'])['Total Attendees'].sum().reset_index()
 
-    # Aggregate attendance by speaker, date, location, and event category
-    speaker_attendance = \
-    speaker_events.groupby(['Date', 'Primary Midnight Mission Employee Involved', 'Location', 'Event Category'])[
-        'Total Attendees'].sum().reset_index()
-
-    # Plot
+    # Plotting
     fig, ax = plt.subplots(figsize=(12, 8))
     for speaker in speaker_attendance['Primary Midnight Mission Employee Involved'].unique():
         speaker_data = speaker_attendance[speaker_attendance['Primary Midnight Mission Employee Involved'] == speaker]
@@ -40,64 +41,56 @@ def create_event_attendance_chart(df: pd.DataFrame, start_date, end_date):
             bars = ax.bar(category_data['Date'], category_data['Total Attendees'], label=f"{speaker} - {category}",
                           alpha=0.7, width=0.8)
 
-            # Add location labels
-            for bar, location in zip(bars, category_data['Location']):
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width() / 2, height + 10, location, ha='center', va='bottom', fontsize=8,
-                        rotation=0)
-
-            # Add count labels
+            # Annotate location and count above each bar
             for bar in bars:
                 height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width() / 2, height + 5, str(int(height)), ha='center', va='bottom',
-                        fontsize=8)
+                ax.annotate(f'{int(height)}',
+                            xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 3),  # 3 points vertical offset
+                            textcoords="offset points",
+                            ha='center', va='bottom', fontsize=8, clip_on=True)
 
-    plt.xlabel('Date')
-    plt.ylabel('Attendance')
-    plt.title('Speaker Event Attendance by Primary Speaker and Event Category')
-    plt.legend(loc='upper left', bbox_to_anchor=(1.02, 1))
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Attendance')
+    ax.set_title('Speaker Event Attendance by Primary Speaker and Event Category')
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
     plt.xticks(rotation=45)
-    plt.subplots_adjust(right=0.7)
-    plt.tight_layout()
 
-    st.pyplot(plt)
+    st.pyplot(fig)
 
 
+# Plot a bar chart showing the historical summary of event counts by monthly periods.
 def create_historical_summary_chart(df: pd.DataFrame):
-    st.write("## Historical Summary Chart")
+    st.subheader("Historical Summary Chart")
 
-    data = df.copy()
+    # Group and count events by month
+    monthly_counts = df.groupby(pd.Grouper(key='Date', freq='M')).size()
 
-    # Group the data by monthly periods and count the events
-    data['Date'] = pd.to_datetime(data['Date'])
-    monthly_counts = data.groupby(pd.Grouper(key='Date', freq='M')).size()
-
-    # Create the bar chart
+    # Plotting
     plt.figure(figsize=(12, 6))
-    bar_width = 20
-    plt.bar(monthly_counts.index, monthly_counts.values, width=bar_width)
-    plt.xlabel('Monthly Periods')
+    plt.bar(monthly_counts.index, monthly_counts, width=20)
+    plt.xlabel('Month')
     plt.ylabel('Event Count')
-    plt.title('Historical Summary of Event Counts by Monthly Periods')
+    plt.title('Monthly Event Counts')
     plt.xticks(rotation=45)
-    # plt.grid(True)
     plt.tight_layout()
-
     st.pyplot(plt)
 
 
+# Main logic to handle file upload and display charts
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
+    df = preprocess_data(df)
 
+    # Display the historical summary chart
     create_historical_summary_chart(df)
 
-    # Let the user choose the date range
-    start_date = pd.to_datetime(st.date_input("Start Date", value=pd.Timestamp.today() - pd.DateOffset(months=2)))
-    end_date = pd.to_datetime(st.date_input("End Date", value=pd.Timestamp.today()))
+    # Date selection for event attendance chart
+    start_date = st.date_input("Start Date", value=pd.Timestamp.today() - pd.DateOffset(months=2))
+    end_date = st.date_input("End Date", value=pd.Timestamp.today())
 
-    # Check if the start date is not after the end date
+    # Ensure the start date is not after the end date
     if start_date > end_date:
         st.error("Start date must be before end date.")
     else:
-        create_event_attendance_chart(df, start_date, end_date)
-
+        create_event_attendance_chart(df, pd.Timestamp(start_date), pd.Timestamp(end_date))
