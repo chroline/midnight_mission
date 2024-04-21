@@ -31,7 +31,7 @@ def create_distribution_chart(df: pd.DataFrame):
 
     # Adding annotations
     for i, count in enumerate(media_type_distribution):
-        ax.text(i, count + 1, str(count), ha='center')
+        ax.text(i, count, str(count), ha='center')
 
     st.write("## Distribution")
     st.pyplot(plt)

@@ -9,6 +9,45 @@ st.write("# Social Media Dashboard")
 uploaded_file = st.file_uploader("Choose an Excel (.xlsx) file", type="xlsx")
 
 
+def create_followers_chart(df: DataFrame):
+    st.write("## Total Followers")
+
+    data = df.copy()
+
+    # Ensure the 'Date' column is in datetime format
+    data['Date'] = pd.to_datetime(data['Date'])
+
+    # Streamlit sidebar component to select a month
+    selected_month = st.date_input("Select a month", min_value=data['Date'].min(), max_value=data['Date'].max(), value=data['Date'].max())
+
+    # Filter data to the selected month
+    # Extracting year and month from the date for comparison
+    data['YearMonth'] = data['Date'].dt.strftime('%Y-%m')
+    selected_month_str = selected_month.strftime('%Y-%m')
+    month_data = data[data['YearMonth'] == selected_month_str]
+
+    # Aggregate the data for the selected month
+    numeric_columns = data.select_dtypes(include='number').columns.drop('Date', errors='ignore')
+    monthly_totals = month_data[numeric_columns].sum()
+
+    # Plotting
+    plt.figure(figsize=(10, 6))
+    ax = monthly_totals.plot(kind='bar', color='skyblue')
+    plt.title('Total Followers per Platform')
+    plt.xlabel('Platforms')
+    plt.ylabel('Total Followers')
+    plt.xticks(rotation=45)
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.tight_layout()
+
+    # Adding annotations
+    for i, count in enumerate(monthly_totals):
+        ax.text(i, count, str(count), ha='center')
+
+
+    st.pyplot(plt)
+
+
 def create_growth_chart(df: DataFrame):
     data = df.copy()
 
@@ -121,7 +160,7 @@ def create_mtm_growth_chart(df: pd.DataFrame):
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
+    create_followers_chart(df)
     create_growth_chart(df)
     create_median_growth_chart(df)
-
     create_mtm_growth_chart(df)
