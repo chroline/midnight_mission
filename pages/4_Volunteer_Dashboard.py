@@ -58,5 +58,3 @@ if uploaded_file is not None:
 
     # Show plot
     st.pyplot(fig)
-else:
-    st.write("Please upload a CSV file.")
