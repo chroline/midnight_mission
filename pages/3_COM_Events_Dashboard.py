@@ -16,16 +16,30 @@ def preprocess_data(df: pd.DataFrame):
     return df
 
 
+# Plot a bar chart showing the historical summary of event counts by monthly periods.
+def plot_historical_summary_chart(df: pd.DataFrame):
+    st.subheader("Historical Summary Chart")
+
+    # Group and count events by month
+    monthly_counts = df.groupby(pd.Grouper(key='Date', freq='M')).size()
+
+    # Plotting
+    plt.figure(figsize=(12, 6))
+    plt.bar(monthly_counts.index, monthly_counts, width=20)
+    plt.xlabel('Month')
+    plt.ylabel('Event Count')
+    plt.title('Monthly Event Counts')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    st.pyplot(plt)
+
+
 # Plot the attendance for speaker events filtered by date and event type.
-def create_event_attendance_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.Timestamp):
+def plot_event_attendance_chart(df: pd.DataFrame):
     st.subheader("Event Attendance Chart")
 
-    # Filter data for events between the selected date range and specific months
-    filtered_data = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
-    filtered_data = filtered_data[filtered_data['Date'].dt.month.isin([11, 12])]
-
     # Further filter for events of type "Speaker"
-    speaker_events = filtered_data[filtered_data['Event Category'].str.contains('Speaking Events')]
+    speaker_events = df[df['Event Category'].str.contains('Speaking Events')]
 
     # Aggregate attendance
     speaker_attendance = speaker_events.groupby(['Date', 'Primary Midnight Mission Employee Involved',
@@ -59,19 +73,34 @@ def create_event_attendance_chart(df: pd.DataFrame, start_date: pd.Timestamp, en
     st.pyplot(fig)
 
 
-# Plot a bar chart showing the historical summary of event counts by monthly periods.
-def create_historical_summary_chart(df: pd.DataFrame):
-    st.subheader("Historical Summary Chart")
+# Plot count of events, excluding specific speaker events
+def plot_event_category_chart(df: pd.DataFrame):
+    st.subheader("Event Counts by Category")
 
-    # Group and count events by month
-    monthly_counts = df.groupby(pd.Grouper(key='Date', freq='M')).size()
+    # Define the categories of interest
+    categories = ['Laughter with a Mission', 'Art with a Mission', 'Music with a Mission', 'Community Event',
+                  'Special Event']
 
-    # Plotting
-    plt.figure(figsize=(12, 6))
-    plt.bar(monthly_counts.index, monthly_counts, width=20)
-    plt.xlabel('Month')
-    plt.ylabel('Event Count')
-    plt.title('Monthly Event Counts')
+    # Filter for events in the specified categories
+    filtered_events = df[df['Event Category'].isin(categories)]
+
+    # Count the number of events for each category
+    category_counts = filtered_events['Event Category'].value_counts()
+
+    if category_counts.empty:
+        return st.write("No non-speaker events found.")
+
+    # Create a bar chart
+    plt.figure(figsize=(10, 6))
+    category_counts.plot(kind='bar', color='skyblue')
+
+    # Add labels for counts above the bars
+    for i, v in enumerate(category_counts):
+        plt.text(i, v + 0.5, str(v), ha='center', va='bottom')
+
+    plt.xlabel('Event Category')
+    plt.ylabel('Count')
+    plt.title('Event Counts by Category')
     plt.xticks(rotation=45)
     plt.tight_layout()
     st.pyplot(plt)
@@ -82,15 +111,20 @@ if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
     df = preprocess_data(df)
 
-    # Display the historical summary chart
-    create_historical_summary_chart(df)
+    plot_historical_summary_chart(df)
 
     # Date selection for event attendance chart
     start_date = st.date_input("Start Date", value=pd.Timestamp.today() - pd.DateOffset(months=2))
     end_date = st.date_input("End Date", value=pd.Timestamp.today())
 
-    # Ensure the start date is not after the end date
     if start_date > end_date:
         st.error("Start date must be before end date.")
     else:
-        create_event_attendance_chart(df, pd.Timestamp(start_date), pd.Timestamp(end_date))
+        filtered_data = df[(df['Date'] >= pd.Timestamp(start_date)) & (df['Date'] <= pd.Timestamp(end_date))].fillna(0)
+        st.write(f"Data from {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}")
+
+        if not filtered_data.empty:
+            plot_event_attendance_chart(filtered_data)
+            plot_event_category_chart(filtered_data)
+        else:
+            st.write("No data available for the selected date range.")
