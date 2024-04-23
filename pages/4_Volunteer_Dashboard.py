@@ -2,65 +2,61 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Set the title for the dashboard
-st.title("Volunteer Dashboard")
+# Title of the dashboard
+st.title('Volunteer Statistics Dashboard')
 
 # File uploader for input data
-uploaded_file = st.file_uploader("Choose an Excel (.xlsx) file", type="xlsx")
+uploaded_file = st.file_uploader("Choose a CSV file", type="xlsx")
 
+if uploaded_file is not None:
+    # Read the uploaded file
+    df = pd.read_excel(uploaded_file)
 
-# Preprocess data, setting 'Date' as a datetime index
-def preprocess_data(df: pd.DataFrame):
-    df['Date'] = pd.to_datetime(df['Date'])
-    df.sort_values('Date', inplace=True)
-    return df
+    # Drop unnamed columns and rows with NaN values in the 'November' column as a placeholder for general cleaning
+    unnamed_columns = [col for col in df.columns if 'Unnamed' in col]
+    df.drop(columns=unnamed_columns, inplace=True)
+    df.dropna(subset=['November'], inplace=True)  # Assuming initial cleanup based on an example column
 
+    # Extract categories
+    categories = df['Category']
 
-# Plot volunteer breakdown by category for a selected date range
-def plot_volunteer_breakdown_chart(df: pd.DataFrame):
-    st.subheader("Volunteer Breakdown by Category")
+    # Setting labels for items in Chart
+    labels = categories.tolist()
 
-    # Assuming `Category` and `Count` are columns in your data after preprocessing
-    category_counts = df.groupby('Category')['Count'].sum()
-    labels = category_counts.index.tolist()
-    sizes = category_counts.tolist()
+    # Dropdown to select the month
+    month_list = [col for col in df.columns if col not in ['Category'] + unnamed_columns]
+    selected_month = st.selectbox('Select Month for Analysis', options=month_list)
 
-    # Calculate percentages for filtering labels
-    total_size = sum(sizes)
-    percentages = [size / total_size * 100 for size in sizes]
-    explode = tuple(0.05 for _ in sizes)
-    filtered_labels = [label if pct > 2 else '' for label, pct in zip(labels, percentages)]
+    # Data for the selected month
+    month_data = df[selected_month].tolist()
 
-    # Create Pie Chart
-    plt.figure(figsize=(10, 8))
-    plt.pie(sizes, labels=filtered_labels, autopct=lambda pct: f'{pct:.1f}%' if pct > 2 else '', pctdistance=0.85,
-            explode=explode)
+    # Calculate totals and percentages
+    total_size = sum(month_data)
+    percentages = [size / total_size * 100 for size in month_data]
+
+    # Define the explosion for slices
+    explode = tuple(0.05 if pct > 2 else 0 for pct in percentages)  # Explode only significant slices
+
+    # Filter labels for significant percentages
+    filtered_labels = [label if pct > 2 else '' for label, pct in zip(categories, percentages)]
+
+    # Pie Chart
+    plt.pie(month_data, labels=filtered_labels,
+            autopct=lambda pct: f'{pct:.1f}%' if pct > 2 else '',
+            pctdistance=0.85, explode=explode)
+
+    # Draw center circle for a donut shape
     centre_circle = plt.Circle((0, 0), 0.70, fc='white')
     fig = plt.gcf()
     fig.gca().add_artist(centre_circle)
-    plt.title('Volunteer Breakdown by Category')
-    plt.legend(labels, title="Categories", loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.tight_layout()
 
-    st.pyplot(plt)
+    # Chart title
+    plt.title(f'{selected_month} Volunteering by Category')
 
+    # Adding legend outside the plot
+    plt.legend(labels, title="Categories", loc='center left', bbox_to_anchor=(1.5, 0.5))
 
-# Main logic to handle file upload and display charts
-if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
-    df = preprocess_data(df)
-
-    # Display charts...
-    start_date = st.date_input("Start Date", value=pd.Timestamp.today() - pd.DateOffset(months=2))
-    end_date = st.date_input("End Date", value=pd.Timestamp.today())
-
-    if start_date > end_date:
-        st.error("Start date must be before end date.")
-    else:
-        filtered_data = df[(df['Date'] >= pd.Timestamp(start_date)) & (df['Date'] <= pd.Timestamp(end_date))].fillna(0)
-        st.write(f"Data from {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}")
-
-        if not filtered_data.empty:
-            plot_volunteer_breakdown_chart(filtered_data)
-        else:
-            st.write("No data available for the selected date range.")
+    # Show plot
+    st.pyplot(fig)
+else:
+    st.write("Please upload a CSV file.")
