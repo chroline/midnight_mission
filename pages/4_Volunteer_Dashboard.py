@@ -8,33 +8,28 @@ st.title('Volunteer Statistics Dashboard')
 # File uploader for input data
 uploaded_file = st.file_uploader("Choose a CSV file", type="xlsx")
 
-if uploaded_file is not None:
-    # Read the uploaded file
-    df = pd.read_excel(uploaded_file)
+
+def plot_graph(df: pd.DataFrame, title, selected_month):
+    plt.figure()
 
     # Drop unnamed columns and rows with NaN values in the 'November' column as a placeholder for general cleaning
     unnamed_columns = [col for col in df.columns if 'Unnamed' in col]
     df.drop(columns=unnamed_columns, inplace=True)
-    df.dropna(subset=['November'], inplace=True)  # Assuming initial cleanup based on an example column
+    df.dropna(subset=[selected_month], inplace=True)  # Cleanup based on the selected month
 
     # Extract categories
-    categories = df['Category']
-
-    # Setting labels for items in Chart
-    labels = categories.tolist()
-
-    # Dropdown to select the month
-    month_list = [col for col in df.columns if col not in ['Category'] + unnamed_columns]
-    selected_month = st.selectbox('Select Month for Analysis', options=month_list)
+    categories = df['Category'].tolist()
 
     # Data for the selected month
     month_data = df[selected_month].tolist()
 
-    # Calculate totals and percentages
+    # Calculate total size
     total_size = sum(month_data)
+
+    # Calculate percentages
     percentages = [size / total_size * 100 for size in month_data]
 
-    # Define the explosion for slices
+    # Explosion
     explode = tuple(0.05 if pct > 2 else 0 for pct in percentages)  # Explode only significant slices
 
     # Filter labels for significant percentages
@@ -45,16 +40,32 @@ if uploaded_file is not None:
             autopct=lambda pct: f'{pct:.1f}%' if pct > 2 else '',
             pctdistance=0.85, explode=explode)
 
-    # Draw center circle for a donut shape
+    # Draw circle
     centre_circle = plt.Circle((0, 0), 0.70, fc='white')
     fig = plt.gcf()
+
+    # Adding Circle in Pie chart
     fig.gca().add_artist(centre_circle)
 
     # Chart title
-    plt.title(f'{selected_month} Volunteering by Category')
+    plt.title(f'{selected_month} {title}')
 
     # Adding legend outside the plot
-    plt.legend(labels, title="Categories", loc='center left', bbox_to_anchor=(1.5, 0.5))
+    plt.legend(categories, title="Categories", loc='center left', bbox_to_anchor=(1.5, 0.5))
 
     # Show plot
     st.pyplot(fig)
+
+
+if uploaded_file is not None:
+    # Read the uploaded file
+    volunteer_numbers_df = pd.read_excel(uploaded_file, 'Counts')
+    volunteer_hours_df = pd.read_excel(uploaded_file, 'Hours')
+
+    # Dropdown to select the month (outside the plotting function)
+    month_list = [col for col in volunteer_numbers_df.columns if col not in ['Category']]
+    selected_month = st.selectbox('Select Month for Analysis', options=month_list)
+
+    # Plotting
+    plot_graph(volunteer_numbers_df, 'Volunteering by Category', selected_month)
+    plot_graph(volunteer_hours_df, 'Volunteering Hours by Category', selected_month)
