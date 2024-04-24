@@ -12,9 +12,6 @@ uploaded_file = st.file_uploader("Choose a CSV file", type="xlsx")
 def plot_graph(df: pd.DataFrame, title, selected_month):
     plt.figure()
 
-    # Drop unnamed columns and rows with NaN values in the 'November' column as a placeholder for general cleaning
-    unnamed_columns = [col for col in df.columns if 'Unnamed' in col]
-    df.drop(columns=unnamed_columns, inplace=True)
     df.dropna(subset=[selected_month], inplace=True)  # Cleanup based on the selected month
 
     # Extract categories
@@ -61,6 +58,11 @@ if uploaded_file is not None:
     # Read the uploaded file
     volunteer_numbers_df = pd.read_excel(uploaded_file, 'Counts')
     volunteer_hours_df = pd.read_excel(uploaded_file, 'Hours')
+
+    for df in [volunteer_numbers_df, volunteer_hours_df]:
+        # Drop unnamed columns and rows with NaN values in the 'November' column as a placeholder for general cleaning
+        unnamed_columns = [col for col in df.columns if 'Unnamed' in col]
+        df.drop(columns=unnamed_columns, inplace=True)
 
     # Dropdown to select the month (outside the plotting function)
     month_list = [col for col in volunteer_numbers_df.columns if col not in ['Category']]
